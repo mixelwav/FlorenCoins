@@ -1,0 +1,146 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.18;  // Fijamos la versión de Solidity
+
+// Usamos SafeMath para evitar problemas de desbordamiento
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+
+/**
+ * @title FlorenCoin - A basic ERC-20 token contract
+ * @dev This contract implements the basic functions of an ERC-20 token
+ */
+contract FlorenCoin {
+    using SafeMath for uint256;  // Aplicamos SafeMath a las variables
+
+    string public constant name = "FlorenCoin";  // Nombre del token
+    string public constant symbol = "FLOREN";    // Símbolo del token
+    uint8 public constant decimals = 18;         // Decimales del token
+    uint256 public immutable totalSupply;         // Total de tokens en circulación
+
+    // Mapeo de saldos de las direcciones
+    mapping(address => uint256) public balanceOf;  
+
+    // Mapeo de allowances
+    mapping(address => mapping(address => uint256)) public allowance; 
+
+    address public owner;  // Propietario del contrato
+    mapping(address => bool) public isAuthorized;  // Direcciones autorizadas (roles de administración)
+
+    // Definir eventos
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);  // Evento de transferencia de propiedad
+
+    /**
+     * @dev Constructor que asigna la cantidad inicial de tokens al creador (msg.sender)
+     */
+    constructor() {
+        owner = msg.sender;  // El creador del contrato es el propietario inicial
+        totalSupply = 1000000 * 10 ** uint256(decimals); // 1 millón de tokens
+        balanceOf[msg.sender] = totalSupply;  // El propietario inicial recibe todos los tokens
+        emit Transfer(address(0), msg.sender, totalSupply);  // Emitir el evento de transferencia inicial
+    }
+
+    // Modificadores
+    modifier onlyOwner() {
+        require(msg.sender == owner, "You are not the owner");
+        _;
+    }
+
+    modifier onlyAuthorized() {
+        require(isAuthorized[msg.sender] || msg.sender == owner, "Not authorized");
+        _;
+    }
+
+    /**
+     * @notice Transfer tokens to a specified address
+     * @param to The address to send tokens to
+     * @param amount The amount of tokens to send
+     * @return success Whether the transfer was successful
+     */
+    function transfer(address to, uint256 amount) external returns (bool) {
+        require(to != address(0), "Cannot transfer to the zero address");
+        require(balanceOf[msg.sender] >= amount, "Insufficient balance");
+
+        balanceOf[msg.sender] = balanceOf[msg.sender].sub(amount);  // Usamos SafeMath para la resta
+        balanceOf[to] = balanceOf[to].add(amount);  // Usamos SafeMath para la suma
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+
+    /**
+     * @notice Approve another address to spend tokens on behalf of the sender
+     * @param spender The address allowed to spend tokens
+     * @param amount The amount of tokens the spender is allowed to transfer
+     * @return success Whether the approval was successful
+     */
+    function approve(address spender, uint256 amount) external returns (bool) {
+        require(spender != address(0), "Cannot approve the zero address");
+        allowance[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+
+    /**
+     * @notice Transfer tokens from one address to another on behalf of the owner
+     * @param from The address to transfer tokens from
+     * @param to The address to transfer tokens to
+     * @param amount The amount of tokens to transfer
+     * @return success Whether the transfer was successful
+     */
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        require(from != address(0), "Cannot transfer from the zero address");
+        require(to != address(0), "Cannot transfer to the zero address");
+        require(balanceOf[from] >= amount, "Insufficient balance");
+        require(allowance[from][msg.sender] >= amount, "Allowance exceeded");
+
+        balanceOf[from] = balanceOf[from].sub(amount);  // Usamos SafeMath para la resta
+        balanceOf[to] = balanceOf[to].add(amount);  // Usamos SafeMath para la suma
+        allowance[from][msg.sender] = allowance[from][msg.sender].sub(amount);  // Usamos SafeMath para la resta
+        emit Transfer(from, to, amount);
+        return true;
+    }
+
+    /**
+     * @notice Transfer the ownership of the contract to a new address
+     * @param newOwner The new owner of the contract
+     */
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "New owner is the zero address");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
+    }
+
+    /**
+     * @notice Add an address to the authorized list
+     * @param account The address to authorize
+     */
+    function authorize(address account) external onlyOwner {
+        require(account != address(0), "Cannot authorize the zero address");
+        isAuthorized[account] = true;
+    }
+
+    /**
+     * @notice Revoke authorization of an address
+     * @param account The address to revoke authorization
+     */
+    function revokeAuthorization(address account) external onlyOwner {
+        require(account != address(0), "Cannot revoke the zero address");
+        isAuthorized[account] = false;
+    }
+
+    /**
+     * @notice Get the balance of the owner
+     * @return The balance of the owner
+     */
+    function ownerBalance() external view returns (uint256) {
+        return balanceOf[owner];
+    }
+
+    /**
+     * @notice Get the total supply of the token
+     * @return The total supply of the token
+     */
+    function getTotalSupply() external view returns (uint256) {
+        return totalSupply;
+    }
+}
